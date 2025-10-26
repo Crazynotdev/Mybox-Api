@@ -1,124 +1,182 @@
+// server.js
+require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
 const axios = require('axios');
-
+const cors = require('cors');
 const app = express();
-const port = 3000;
-const TMDB_API_KEY = 'YOUR_TMDB_API_KEY'; // Remplacez par votre clé TMDB
-const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const port = process.env.PORT || 3000;
+const TMDB_KEY = process.env.TMDB_API_KEY;
+if (!TMDB_KEY) {
+  console.error('ERREUR: définis TMDB_API_KEY dans .env');
+  process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Pour servir la doc HTML
 
-// Helper pour requêtes TMDB
-async function tmdbRequest(endpoint, params = {}) {
-  try {
-    const response = await axios.get(`${TMDB_BASE_URL}${endpoint}`, {
-      params: { ...params, api_key: TMDB_API_KEY },
-    });
-    return response.data;
-  } catch (error) {
-    console.error(error);
-    throw new Error('Erreur lors de la requête TMDB');
-  }
+// Utilitaires TMDB
+const TMDB_BASE = 'https://api.themoviedb.org/3';
+
+async function tmdbGet(path, params = {}) {
+  params.api_key = TMDB_KEY;
+  const url = `${TMDB_BASE}${path}`;
+  const res = await axios.get(url, { params });
+  return res.data;
 }
 
-// /api/search/:query - Recherche films/séries
+// Route: Search (movies + tv)
 app.get('/api/search/:query', async (req, res) => {
   try {
-    const data = await tmdbRequest('/search/multi', { query: req.params.query });
-    res.json(data.results.map(item => ({
-      id: item.id,
-      title: item.title || item.name,
-      type: item.media_type,
-      release_date: item.release_date || item.first_air_date,
-      poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-    })));
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur de recherche' });
+    const q = req.params.query;
+    const movieResults = await tmdbGet('/search/movie', { query: q, include_adult: false, language: 'fr-FR' });
+    const tvResults = await tmdbGet('/search/tv', { query: q, language: 'fr-FR' });
+
+    // On normalise un peu le résultat
+    const results = [
+      ...movieResults.results.map(r => ({ id: `movie_${r.id}`, tmdb_id: r.id, type: 'movie', title: r.title || r.name, year: (r.release_date||'').slice(0,4) })),
+      ...tvResults.results.map(r => ({ id: `tv_${r.id}`, tmdb_id: r.id, type: 'tv', title: r.name, year: (r.first_air_date||'').slice(0,4) }))
+    ];
+    res.json({ success: true, query: q, count: results.length, results });
+  } catch (err) {
+    console.error(err?.message || err);
+    res.status(500).json({ success: false, message: 'TMDB search failed' });
   }
 });
 
-// /api/info/:id - Infos détaillées (film ou série)
+// Route: Info (we accept id like "movie_123" or "tv_456" or plain numeric assume movie)
 app.get('/api/info/:id', async (req, res) => {
   try {
-    const id = req.params.id;
-    // Déterminer si film ou série (on essaie film d'abord)
-    let data = await tmdbRequest(`/movie/${id}`);
-    if (!data.title) {
-      data = await tmdbRequest(`/tv/${id}`);
+    const raw = req.params.id;
+    let type = 'movie';
+    let tmdbId = raw;
+
+    if (raw.startsWith('movie_')) {
+      type = 'movie';
+      tmdbId = raw.split('_')[1];
+    } else if (raw.startsWith('tv_')) {
+      type = 'tv';
+      tmdbId = raw.split('_')[1];
     }
-    res.json({
-      title: data.title || data.name,
-      synopsis: data.overview,
-      release_date: data.release_date || data.first_air_date,
-      rating: data.vote_average,
-      genres: data.genres.map(g => g.name),
-      poster: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : null,
-      cast: (await tmdbRequest(`/movie/${id}/credits` || `/tv/${id}/credits`)).cast.slice(0, 5).map(c => c.name),
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur d\'infos' });
+
+    // fallback: if numeric but unknown, try movie first then tv
+    let info;
+    try {
+      info = await tmdbGet(`/${type}/${tmdbId}`, { language: 'fr-FR', append_to_response: 'credits,images' });
+    } catch (e) {
+      if (type === 'movie') {
+        // try tv
+        info = await tmdbGet(`/tv/${tmdbId}`, { language: 'fr-FR', append_to_response: 'credits,images' });
+      } else {
+        throw e;
+      }
+    }
+
+    res.json({ success: true, id: raw, tmdb_id: tmdbId, info });
+  } catch (err) {
+    console.error(err?.message || err);
+    res.status(404).json({ success: false, message: 'Not found or TMDB error' });
   }
 });
 
-// /api/sources/:id - Sources de téléchargement (dummy pour l'exemple, remplacez par scraping réel)
-app.get('/api/sources/:id', (req, res) => {
-  const season = req.query.season;
-  const episode = req.query.episode;
-  const isTV = season && episode;
-  res.json([
-    { quality: '360p', url: `https://dummy-link.com/${req.params.id}${isTV ? `?s=${season}&e=${episode}` : ''}/360p.mp4`, proxy_url: `/api/download/dummy360` },
-    { quality: '720p', url: `https://dummy-link.com/${req.params.id}${isTV ? `?s=${season}&e=${episode}` : ''}/720p.mp4`, proxy_url: `/api/download/dummy720` },
-    { quality: '1080p', url: `https://dummy-link.com/${req.params.id}${isTV ? `?s=${season}&e=${episode}` : ''}/1080p.mp4`, proxy_url: `/api/download/dummy1080` },
-  ]);
+// Route: Sources (returns trailers, videos and where to watch/providers if available)
+// Accepts query ?season=&episode= for tv
+app.get('/api/sources/:id', async (req, res) => {
+  try {
+    const raw = req.params.id;
+    let type = 'movie';
+    let tmdbId = raw;
+
+    if (raw.startsWith('movie_')) { type = 'movie'; tmdbId = raw.split('_')[1]; }
+    else if (raw.startsWith('tv_')) { type = 'tv'; tmdbId = raw.split('_')[1]; }
+
+    // for tv episodes we still use tv/{id}/season/{s}/episode/{e} for episode-specific info if provided
+    const season = req.query.season;
+    const episode = req.query.episode;
+
+    // Get videos (trailers, teasers)
+    const videos = await tmdbGet(`/${type}/${tmdbId}/videos`, { language: 'fr-FR' });
+
+    // Get watch/providers
+    const providers = await tmdbGet(`/${type}/${tmdbId}/watch/providers`);
+
+    // If tv episode provided, get episode details (if available)
+    let episodeInfo = null;
+    if (type === 'tv' && season && episode) {
+      try {
+        episodeInfo = await tmdbGet(`/tv/${tmdbId}/season/${season}/episode/${episode}`, { language: 'fr-FR', append_to_response: 'credits' });
+      } catch (e) {
+        episodeInfo = null;
+      }
+    }
+
+    // Build "sources": we will expose official TMDB videos (youtube/vimeo keys), and providers object
+    const results = {
+      success: true,
+      id: raw,
+      tmdb_id: tmdbId,
+      type,
+      season: season || null,
+      episode: episode || null,
+      videos: videos.results || [],
+      providers: providers.results || {},
+      episode_info: episodeInfo
+    };
+
+    res.json(results);
+  } catch (err) {
+    console.error(err?.message || err);
+    res.status(500).json({ success: false, message: 'Failed to fetch sources' });
+  }
 });
 
-// /api/homepage - Contenu homepage (populaires)
+// Route: homepage (we return popular movies + trending)
 app.get('/api/homepage', async (req, res) => {
   try {
-    const movies = await tmdbRequest('/movie/popular');
-    const tv = await tmdbRequest('/tv/popular');
+    const popular = await tmdbGet('/movie/popular', { language: 'fr-FR', page: 1 });
+    const nowPlaying = await tmdbGet('/movie/now_playing', { language: 'fr-FR', page: 1 });
+    const tvPopular = await tmdbGet('/tv/popular', { language: 'fr-FR', page: 1 });
+
     res.json({
-      featured: movies.results.slice(0, 5),
-      trending_movies: movies.results,
-      trending_tv: tv.results,
+      success: true,
+      homepage: {
+        featured: popular.results.slice(0,6),
+        now_playing: nowPlaying.results.slice(0,6),
+        tv_popular: tvPopular.results.slice(0,6)
+      }
     });
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur homepage' });
+  } catch (err) {
+    console.error(err?.message || err);
+    res.status(500).json({ success: false, message: 'Failed to build homepage' });
   }
 });
 
-// /api/trending - Trending
+// Route: trending
 app.get('/api/trending', async (req, res) => {
   try {
-    const data = await tmdbRequest('/trending/all/week');
-    res.json(data.results);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur trending' });
+    const trending = await tmdbGet('/trending/all/day', { language: 'fr-FR' });
+    res.json({ success: true, trending: trending.results });
+  } catch (err) {
+    console.error(err?.message || err);
+    res.status(500).json({ success: false, message: 'Failed to fetch trending' });
   }
 });
 
-// /api/download/:encodedVideoUrl - Proxy pour téléchargement (ajoute headers mobiles)
-app.get('/api/download/:encodedVideoUrl', (req, res) => {
-  const url = decodeURIComponent(req.params.encodedVideoUrl);
-  // Proxy simple avec headers (remplacez url par une vraie si besoin)
-  axios.get(url, { responseType: 'stream', headers: { 'User-Agent': 'MovieBoxApp/1.0' } })
-    .then(response => response.data.pipe(res))
-    .catch(() => res.status(500).json({ error: 'Erreur de proxy' }));
-});
-
-// Endpoint supplémentaire (plus avancé) : /api/recommendations/:id - Recommandations
-app.get('/api/recommendations/:id', async (req, res) => {
+// Route: download proxy demo — decodes the encoded URL and offers a redirect or JSON.
+// NOTE: for real streaming proxy implement streaming with proper headers and CORS.
+app.get('/api/download/:encodedUrl', (req, res) => {
   try {
-    const data = await tmdbRequest(`/movie/${req.params.id}/recommendations`); // Ou /tv pour séries
-    res.json(data.results);
-  } catch (error) {
-    res.status(500).json({ error: 'Erreur de recommandations' });
+    const encoded = req.params.encodedUrl;
+    const url = decodeURIComponent(encoded);
+    // Option A: redirect to the original URL (fast but won't hide referrer)
+    // res.redirect(url);
+
+    // Option B: return JSON showing decoded URL (for demo)
+    res.json({ success: true, proxiedUrl: url, note: 'Pour un vrai proxy, implémente le streaming côté serveur avec les headers adéquats.' });
+  } catch (err) {
+    res.status(400).json({ success: false, message: 'Invalid encoded url' });
   }
 });
 
 app.listen(port, () => {
-  console.log(`Serveur lancé sur http://localhost:${port}`);
+  console.log(`MovieBox-like API (TMDB) running on http://localhost:${port}`);
 });
