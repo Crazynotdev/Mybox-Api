@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>My Box API Documentation</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    h1 { color: #333; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    code { background-color: #f4f4f4; padding: 2px 4px; }
+  </style>
+</head>
+<body>
+  <h1>My MovieBox API - Documentation</h1>
+  <p>API pour accéder à des métadonnées et sources de films/séries. Plus avancé que l'original avec recommandations.</p>
+  <table>
+    <tr><th>Endpoint</th><th>Description</th><th>Paramètres</th><th>Exemple</th></tr>
+    <tr><td><code>/api/search/:query</code></td><td>Recherche</td><td>query (ex: avatar)</td><td><a href="/api/search/avatar">Tester</a></td></tr>
+    <tr><td><code>/api/info/:id</code></td><td>Infos détaillées</td><td>id (ex: 19995 pour Avatar)</td><td><a href="/api/info/19995">Tester</a></td></tr>
+    <tr><td><code>/api/sources/:id</code></td><td>Sources (dummy)</td><td>?season=1&episode=1 (pour TV)</td><td><a href="/api/sources/19995">Tester</a></td></tr>
+    <tr><td><code>/api/homepage</code></td><td>Contenu homepage</td><td>-</td><td><a href="/api/homepage">Tester</a></td></tr>
+    <tr><td><code>/api/trending</code></td><td>Trending</td><td>-</td><td><a href="/api/trending">Tester</a></td></tr>
+    <tr><td><code>/api/download/:encodedVideoUrl</code></td><td>Proxy téléchargement</td><td>encodedVideoUrl (URL encodée)</td><td><a href="/api/download/https%3A%2F%2Fexample.com%2Fvideo.mp4">Tester (dummy)</a></td></tr>
+    <tr><td><code>/api/recommendations/:id</code></td><td>Recommandations (extra)</td><td>id</td><td><a href="/api/recommendations/19995">Tester</a></td></tr>
+  </table>
+  <pPAr Crazy Nb: les scrapes peuvent etre instable</p>
+</body>
+</html>
