@@ -6,7 +6,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 const TMDB_KEY = process.env.TMDB_API_KEY;
 
-// Log un avertissement si la clé TMDB manque
+
 if (!TMDB_KEY) {
   console.warn('AVERTISSEMENT: TMDB_API_KEY non défini. Les endpoints TMDB échoueront.');
 }
@@ -14,10 +14,10 @@ if (!TMDB_KEY) {
 app.use(cors());
 app.use(express.json());
 
-// Simulation d'une DB en mémoire pour watchlist (remplace par MongoDB en prod)
-let watchlist = []; // Ex: [{ userId: 'user1', items: ['movie_19995'] }]
 
-// Route racine pour la documentation HTML (version plus belle avec CSS avancé, gradients, icons, responsive design)
+let watchlist = [{ userId: 'user1', items: ['movie_19995'] }]; // :/
+
+
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -25,7 +25,7 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>MyBox API - Documentation Élégante</title>
+      <title>MyBox API - Documentation</title>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
       <style>
         body {
@@ -112,7 +112,7 @@ app.get('/', (req, res) => {
       </style>
     </head>
     <body>
-      <h1><i class="fas fa-film icon"></i> MyBox API - Documentation Élégante by Crazy</h1>
+      <h1><i class="fas fa-film icon"></i> MyBox API - Documentation by Crazy</h1>
       <p>Bienvenue sur l'API MyBox, une solution inspirée de MovieBox et propulsée par The Movie Database (TMDB). Elle offre des endpoints puissants pour gérer films, séries, streaming et plus. Tous les réponses sont en JSON avec un champ "success" pour le statut.</p>
       <p>Pour un site de streaming : Intégrez ces routes à votre frontend pour une expérience fluide. Les sources incluent des liens légaux vers des plateformes comme Netflix.</p>
       
@@ -196,13 +196,13 @@ app.get('/', (req, res) => {
       <h2><i class="fas fa-info-circle icon"></i> Conseils d'Utilisation</h2>
       <p>Intégrez cette API à votre site de streaming pour une expérience utilisateur optimale. Pour des fonctionnalités avancées comme l'authentification, contactez le développeur.</p>
       
-      <footer>© 2025 MyBox API - Powered by TMDB | Design by Crazy | Déployé sur Render</footer>
+      <footer>© 2025 MyBox API - Powered by Crazy</footer>
     </body>
     </html>
   `);
 });
 
-// Utilitaires TMDB
+
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 
 async function tmdbGet(path, params = {}) {
@@ -220,7 +220,7 @@ async function tmdbGet(path, params = {}) {
   }
 }
 
-// Route: Search (comme avant)
+
 app.get('/api/search/:query', async (req, res) => {
   try {
     const q = req.params.query;
@@ -255,7 +255,7 @@ app.get('/api/search/:query', async (req, res) => {
   }
 });
 
-// Route: Info (comme avant)
+
 app.get('/api/info/:id', async (req, res) => {
   try {
     const raw = req.params.id;
@@ -291,7 +291,7 @@ app.get('/api/info/:id', async (req, res) => {
   }
 });
 
-// Route: Sources (comme avant)
+
 app.get('/api/sources/:id', async (req, res) => {
   try {
     const raw = req.params.id;
@@ -332,7 +332,7 @@ app.get('/api/sources/:id', async (req, res) => {
   }
 });
 
-// Route: Homepage (comme avant)
+
 app.get('/api/homepage', async (req, res) => {
   try {
     const popular = await tmdbGet('/movie/popular', { language: 'fr-FR', page: 1 });
@@ -357,7 +357,7 @@ app.get('/api/homepage', async (req, res) => {
   }
 });
 
-// Route: Trending (comme avant)
+
 app.get('/api/trending', async (req, res) => {
   try {
     const trending = await tmdbGet('/trending/all/day', { language: 'fr-FR' });
@@ -375,7 +375,7 @@ app.get('/api/trending', async (req, res) => {
   }
 });
 
-// Route: Download proxy (comme avant)
+
 app.get('/api/download/:encodedUrl', (req, res) => {
   try {
     const encoded = req.params.encodedUrl;
@@ -386,7 +386,7 @@ app.get('/api/download/:encodedUrl', (req, res) => {
   }
 });
 
-// Nouvelle Route: Genres
+
 app.get('/api/genres', async (req, res) => {
   try {
     const type = req.query.type || 'movie';
@@ -397,7 +397,7 @@ app.get('/api/genres', async (req, res) => {
   }
 });
 
-// Nouvelle Route: Discover
+
 app.get('/api/discover', async (req, res) => {
   try {
     const type = req.query.type || 'movie';
@@ -420,7 +420,7 @@ app.get('/api/discover', async (req, res) => {
   }
 });
 
-// Nouvelle Route: Seasons pour TV
+
 app.get('/api/seasons/:id', async (req, res) => {
   try {
     const rawId = req.params.id;
@@ -433,7 +433,7 @@ app.get('/api/seasons/:id', async (req, res) => {
   }
 });
 
-// Nouvelle Route: Episodes pour une saison
+
 app.get('/api/episodes/:id/:season', async (req, res) => {
   try {
     const rawId = req.params.id;
@@ -447,7 +447,7 @@ app.get('/api/episodes/:id/:season', async (req, res) => {
   }
 });
 
-// Nouvelle Route: Watchlist (GET/POST demo)
+
 app.get('/api/watchlist', (req, res) => {
   const userId = req.query.userId;
   const userWatchlist = watchlist.find(w => w.userId === userId)?.items || [];
